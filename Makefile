@@ -1,4 +1,3 @@
-
 SHELL := /bin/bash
 
 # Function name in AWS Lambda:
@@ -73,3 +72,21 @@ modernize_config: config/config.json
 	@python -c 'from haaska import Configuration; print(Configuration("config/config.json").dump())' > config/config.json.modernized
 	@echo Generated config/config.json.modernized from your existing config/config.json
 	@echo Inspect that file and replace config/config.json with it to update your configuration
+
+.PHONY: all clean zip
+
+PACKAGE_NAME = haaska
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+ZIP_FILE = $(PACKAGE_NAME)-$(VERSION).zip
+
+all: zip
+
+zip: clean
+	@echo "Creating $(ZIP_FILE)..."
+	@zip -r $(ZIP_FILE) . -x "*.git*" "*.zip" "*.pyc" "__pycache__/*" "*.md" ".github/*"
+	@echo "Package created: $(ZIP_FILE)"
+
+clean:
+	@echo "Cleaning up..."
+	@rm -f $(PACKAGE_NAME)-*.zip
+	@echo "Clean complete"

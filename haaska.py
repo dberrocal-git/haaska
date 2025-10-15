@@ -29,16 +29,15 @@ import requests
 logger = logging.getLogger()
 
 
-class HomeAssistant(object):
+class HomeAssistant:
     def __init__(self, config):
         self.config = config
-
         self.session = requests.Session()
-        self.session.headers = {
+        self.session.headers.update({
             'Authorization': f'Bearer {config.bearer_token}',
             'content-type': 'application/json',
             'User-Agent': self.get_user_agent()
-        }
+        })
         self.session.verify = config.ssl_verify
         self.session.cert = config.ssl_client
 
@@ -46,10 +45,7 @@ class HomeAssistant(object):
         return f'{self.config.url}/api/{endpoint}'
 
     def get_user_agent(self):
-        library = "Home Assistant Alexa Smart Home Skill"
-        aws_region = os.environ.get("AWS_DEFAULT_REGION")
-        default_user_agent = requests.utils.default_user_agent()
-        return f"{library} - {aws_region} - {default_user_agent}"
+        return f"Home Assistant Alexa Smart Home Skill - {os.environ.get('AWS_DEFAULT_REGION')} - {requests.utils.default_user_agent()}"
 
     def get(self, endpoint):
         r = self.session.get(self.build_url(endpoint))
@@ -57,48 +53,42 @@ class HomeAssistant(object):
         return r.json()
 
     def post(self, endpoint, data, wait=False):
-        read_timeout = None if wait else 0.01
         try:
             logger.debug(f'calling {endpoint} with {data}')
-            r = self.session.post(self.build_url(endpoint),
-                                  data=json.dumps(data),
-                                  timeout=(None, read_timeout))
+            r = self.session.post(
+                self.build_url(endpoint),
+                json=data,
+                timeout=None if wait else 0.01
+            )
             r.raise_for_status()
             return r.json()
         except requests.exceptions.ReadTimeout:
-            # Allow response timeouts after request was sent
-            logger.debug(
-                f'request for {endpoint} sent without waiting for response')
+            logger.debug(f'request for {endpoint} sent without waiting for response')
             return None
 
 
-class Configuration(object):
+class Configuration:
     def __init__(self, filename=None, opts_dict=None):
-        self._json = {}
-        if filename is not None:
+        self._json = opts_dict or {}
+        if filename:
             with open(filename) as f:
                 self._json = json.load(f)
 
-        if opts_dict is not None:
-            self._json = opts_dict
-
         self.url = self.get_url(self.get(['url', 'ha_url']))
-        self.ssl_verify = self.get(['ssl_verify', 'ha_cert'], default=True)
-        self.bearer_token = self.get(['bearer_token'], default='')
-        self.ssl_client = self.get(['ssl_client'], default='')
-        self.debug = self.get(['debug'], default=False)
+        self.ssl_verify = self.get(['ssl_verify', 'ha_cert'], True)
+        self.bearer_token = self.get(['bearer_token'], '')
+        self.ssl_client = self.get(['ssl_client'], '')
+        if isinstance(self.ssl_client, list):
+            self.ssl_client = tuple(self.ssl_client)
+        self.debug = self.get(['debug'], False)
 
     def get(self, keys, default=None):
-        for key in keys:
-            if key in self._json:
-                return self._json[key]
-        return default
+        return next((self._json[key] for key in keys if key in self._json), default)
 
     def get_url(self, url):
         """Returns Home Assistant base url without '/api' or trailing slash"""
         if not url:
             raise ValueError('Property "url" is missing in config')
-
         return url.replace("/api", "").rstrip("/")
 
 
@@ -107,5 +97,4 @@ def event_handler(event, context):
     if config.debug:
         logger.setLevel(logging.DEBUG)
     ha = HomeAssistant(config)
-
     return ha.post('alexa/smart_home', event, wait=True)

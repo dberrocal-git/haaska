@@ -37,7 +37,7 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: haaska.zip
-        name: Release ${{ steps.get_version.outputs.VERSION }}
+        name: haaska ${{ steps.get_version.outputs.VERSION }}
         draft: false
         prerelease: false
       env:

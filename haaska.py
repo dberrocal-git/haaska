@@ -21,80 +21,188 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-import os
+"""Home Assistant Alexa Smart Home Skill integration module.
+
+This module provides classes to interact with Home Assistant via its API,
+handling configuration and HTTP requests for Alexa smart home events.
+"""
+
 import json
 import logging
+import os
+from typing import Any, Dict, List, Optional
+
 import requests
 
 logger = logging.getLogger()
 
 
 class HomeAssistant:
-    def __init__(self, config):
+    """Handles HTTP interactions with Home Assistant API.
+
+    This class manages a requests session configured for Home Assistant,
+    including authentication, SSL settings, and API calls.
+    """
+
+    def __init__(self, config: "Configuration") -> None:
+        """Initialize the HomeAssistant client.
+
+        Args:
+            config (Configuration): Configuration object containing API settings.
+        """
         self.config = config
         self.session = requests.Session()
-        self.session.headers.update({
-            'Authorization': f'Bearer {config.bearer_token}',
-            'content-type': 'application/json',
-            'User-Agent': self.get_user_agent()
-        })
+        # Set up session headers for authentication and content type
+        self.session.headers.update(
+            {
+                "Authorization": f"Bearer {config.bearer_token}",
+                "content-type": "application/json",
+                "User-Agent": self.get_user_agent(),
+            }
+        )
         self.session.verify = config.ssl_verify
         self.session.cert = config.ssl_client
 
-    def build_url(self, endpoint):
-        return f'{self.config.url}/api/{endpoint}'
+    def build_url(self, endpoint: str) -> str:
+        """Build the full API URL for a given endpoint.
 
-    def get_user_agent(self):
+        Args:
+            endpoint (str): The API endpoint path (e.g., 'states').
+
+        Returns:
+            str: The complete URL including base URL and '/api/'.
+        """
+        return f"{self.config.url}/api/{endpoint}"
+
+    def get_user_agent(self) -> str:
+        """Generate a user agent string for requests.
+
+        Returns:
+            str: User agent string including AWS region and default requests UA.
+        """
         return f"Home Assistant Alexa Smart Home Skill - {os.environ.get('AWS_DEFAULT_REGION')} - {requests.utils.default_user_agent()}"
 
-    def get(self, endpoint):
+    def get(self, endpoint: str) -> Dict[str, Any]:
+        """Perform a GET request to the Home Assistant API.
+
+        Args:
+            endpoint (str): The API endpoint to query.
+
+        Returns:
+            dict: JSON response from the API.
+
+        Raises:
+            requests.HTTPError: If the request fails.
+        """
         r = self.session.get(self.build_url(endpoint))
         r.raise_for_status()
         return r.json()
 
-    def post(self, endpoint, data, wait=False):
+    def post(
+        self, endpoint: str, event: Dict[str, Any], wait: bool = False
+    ) -> Optional[Dict[str, Any]]:
+        """Perform a POST request to the Home Assistant API.
+
+        Args:
+            endpoint (str): The API endpoint to post to.
+            event (dict): JSON data to send in the request body.
+            wait (bool): If True, wait for response; otherwise, send asynchronously.
+
+        Returns:
+            dict or None: JSON response if waiting, else None.
+
+        Raises:
+            requests.HTTPError: If the request fails (when waiting).
+        """
         try:
-            logger.debug(f'calling {endpoint} with {data}')
+            logger.debug("calling %s with %s", endpoint, event)
             r = self.session.post(
-                self.build_url(endpoint),
-                json=data,
-                timeout=None if wait else 0.01
+                self.build_url(endpoint), json=event, timeout=None if wait else 0.01
             )
             r.raise_for_status()
             return r.json()
         except requests.exceptions.ReadTimeout:
-            logger.debug(f'request for {endpoint} sent without waiting for response')
+            logger.debug("request for %s sent without waiting for response", endpoint)
             return None
 
 
 class Configuration:
-    def __init__(self, filename=None, opts_dict=None):
+    """Loads and parses configuration from JSON file or dict.
+
+    Handles default values and type conversions for Home Assistant settings.
+    """
+
+    def __init__(
+        self, filename: Optional[str] = None, opts_dict: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """Initialize configuration from file or dict.
+
+        Args:
+            filename (str, optional): Path to JSON config file.
+            opts_dict (dict, optional): Dict with config options.
+        """
         self._json = opts_dict or {}
         if filename:
-            with open(filename) as f:
-                self._json = json.load(f)
+            try:
+                with open(filename, encoding="utf-8") as f:
+                    self._json = json.load(f)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON in config file {filename}: {e}") from e
 
-        self.url = self.get_url(self.get(['url', 'ha_url']))
-        self.ssl_verify = self.get(['ssl_verify', 'ha_cert'], True)
-        self.bearer_token = self.get(['bearer_token'], '')
-        self.ssl_client = self.get(['ssl_client'], '')
+        self.url = self.get_url(self.get(["url", "ha_url"]))
+        self.ssl_verify = self.get(["ssl_verify", "ha_cert"], True)
+        self.bearer_token = self.get(["bearer_token"], "")
+        self.ssl_client = self.get(["ssl_client"], "")
+        # Convert list to tuple for SSL client cert if provided
         if isinstance(self.ssl_client, list):
             self.ssl_client = tuple(self.ssl_client)
-        self.debug = self.get(['debug'], False)
+        self.debug = self.get(["debug"], False)
 
-    def get(self, keys, default=None):
+    def get(self, keys: List[str], default: Any = None) -> Any:
+        """Retrieve value from config dict using multiple possible keys.
+
+        Args:
+            keys (list): List of possible key names to check.
+            default: Default value if none of the keys are found.
+
+        Returns:
+            The value associated with the first matching key, or default.
+        """
         return next((self._json[key] for key in keys if key in self._json), default)
 
-    def get_url(self, url):
-        """Returns Home Assistant base url without '/api' or trailing slash"""
+    def get_url(self, url: str) -> str:
+        """Normalize Home Assistant base URL.
+
+        Removes '/api' suffix and trailing slashes.
+
+        Args:
+            url (str): Raw URL from config.
+
+        Returns:
+            str: Normalized base URL.
+
+        Raises:
+            ValueError: If URL is missing.
+        """
         if not url:
             raise ValueError('Property "url" is missing in config')
         return url.replace("/api", "").rstrip("/")
 
 
-def event_handler(event, context):
-    config = Configuration('config.json')
+def event_handler(event: Dict[str, Any], _context: Any) -> Optional[Dict[str, Any]]:
+    """AWS Lambda event handler for Alexa smart home events.
+
+    Loads config, sets up logging, and forwards event to Home Assistant.
+
+    Args:
+        event (dict): Alexa event data.
+        _context: AWS Lambda context object (unused).
+
+    Returns:
+        dict or None: Response from Home Assistant API, or None if timed out.
+    """
+    config = Configuration("config.json")
     if config.debug:
         logger.setLevel(logging.DEBUG)
     ha = HomeAssistant(config)
-    return ha.post('alexa/smart_home', event, wait=True)
+    return ha.post("alexa/smart_home", event, wait=True)

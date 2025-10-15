@@ -1,17 +1,16 @@
-FROM python:3.10
+FROM python:3.13-slim
 
-RUN \
-  apt-get update && \
-  apt-get install -y jq zip && \
-  pip install awscli && \
-  apt-get clean && \
-  cd /var/lib/apt/lists && rm -fr *Release* *Sources* *Packages* && \
-  truncate -s 0 /var/log/*log
-
-RUN mkdir -p /usr/src/app
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        jq \
+        zip \
+        make && \
+    pip install --no-cache-dir awscli && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
 
-COPY . /usr/src/app
+COPY . .
 
 CMD ["make"]

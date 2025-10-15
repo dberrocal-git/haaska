@@ -1,6 +1,6 @@
 # haaska: Home Assistant Alexa Skill Adapter
 
-[![Main](https://github.com/mike-grant/haaska/actions/workflows/main.yml/badge.svg)](https://github.com/mike-grant/haaska/actions/workflows/main.yml)
+[![Main](https://github.com/dberrocal-git/haaska/actions/workflows/makefile.yml/badge.svg)](https://github.com/dberrocal-git/haaska/actions/workflows/makefile.yml)
 
 ---
 
@@ -25,7 +25,9 @@ Thanks to [@auchter](https://github.com/auchter) for creating the original haask
 
 Thanks to [@bitglue](https://github.com/bitglue) for his work in getting the Smart Home API exposed via HTTP, making this slimmed down version possible.
 
-This fork of haaska was created by [@mike-grant](https://github.com/mike-grant).
+Thanks to [@mike-grant](https://github.com/mike-grant) for his work mantaining the repo.
+
+This fork of haaska was created by [@dberrocal-git](https://github.com/dberrocal-git).
 
 Documentation and additional maintenance is done by [@anthonylavado](https://github.com/anthonylavado), and contributors like you.
 

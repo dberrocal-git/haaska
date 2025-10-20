@@ -32,10 +32,11 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-import requests
+import requests7
 
 logger = logging.getLogger()
 
+DEFAULT_TIMEOUT_SECONDS = 30
 
 class HomeAssistant:
     """Handles HTTP interactions with Home Assistant API.
@@ -99,14 +100,14 @@ class HomeAssistant:
         return r.json()
 
     def post(
-        self, endpoint: str, event: Dict[str, Any], wait: bool = False
+        self, endpoint: str, event: Dict[str, Any], timeout_seconds: Optional[float] = DEFAULT_TIMEOUT_SECONDS
     ) -> Optional[Dict[str, Any]]:
         """Perform a POST request to the Home Assistant API.
 
         Args:
             endpoint (str): The API endpoint to post to.
             event (dict): JSON data to send in the request body.
-            wait (bool): If True, wait for response; otherwise, send asynchronously.
+            timeout_seconds (float, optional): Request timeout in seconds. Defaults to DEFAULT_TIMEOUT_SECONDS.
 
         Returns:
             dict or None: JSON response if waiting, else None.
@@ -117,7 +118,7 @@ class HomeAssistant:
         try:
             logger.debug("calling %s with %s", endpoint, event)
             r = self.session.post(
-                self.build_url(endpoint), json=event, timeout=None if wait else 0.01
+                self.build_url(endpoint), json=event, timeout=timeout_seconds
             )
             r.raise_for_status()
             return r.json()
@@ -205,4 +206,4 @@ def event_handler(event: Dict[str, Any], _context: Any) -> Optional[Dict[str, An
     if config.debug:
         logger.setLevel(logging.DEBUG)
     ha = HomeAssistant(config)
-    return ha.post("alexa/smart_home", event, wait=True)
+    return ha.post("alexa/smart_home", event)

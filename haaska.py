@@ -32,7 +32,7 @@ import logging
 import os
 from typing import Any, Dict, List, Optional
 
-import requests7
+import requests
 
 logger = logging.getLogger()
 

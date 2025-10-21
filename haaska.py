@@ -38,31 +38,122 @@ logger = logging.getLogger()
 
 DEFAULT_TIMEOUT_SECONDS = 30
 
-class HomeAssistant:
-    """Handles HTTP interactions with Home Assistant API.
 
-    This class manages a requests session configured for Home Assistant,
-    including authentication, SSL settings, and API calls.
+class ConfigurationLoader:
+    """Loads configuration from a file."""
+
+    @staticmethod
+    def load(filename: str) -> dict:
+        """Load configuration from a file."""
+        try:
+            with open(filename, encoding="utf-8") as f:
+                return json.load(f)
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON in config file {filename}: {e}")
+
+
+class Configuration:
+    """Loads and parses configuration from JSON file or dict.
+
+    Handles default values and type conversions for Home Assistant settings.
     """
 
-    def __init__(self, config: "Configuration") -> None:
-        """Initialize the HomeAssistant client.
+    def __init__(self, json: dict) -> None:
+        """Initialize configuration from file or dict."""
+        self._json = json
+        self.url = self.get_url(self.get(["url", "ha_url"]))
+        self.ssl_verify = self.get(["ssl_verify", "ha_cert"], True)
+        self.bearer_token = self.get(["bearer_token"], "")
+        self.ssl_client = self.get(["ssl_client"], "")
+        # Convert list to tuple for SSL client cert if provided
+        if isinstance(self.ssl_client, list):
+            self.ssl_client = tuple(self.ssl_client)
+        self.debug = self.get(["debug"], False)
+
+    def get(self, keys: List[str], default: Any = None) -> Any:
+        """Retrieve value from config dict using multiple possible keys.
 
         Args:
-            config (Configuration): Configuration object containing API settings.
+            keys (list): List of possible key names to check.
+            default: Default value if none of the keys are found.
+
+        Returns:
+            The value associated with the first matching key, or default.
         """
-        self.config = config
-        self.session = requests.Session()
-        # Set up session headers for authentication and content type
-        self.session.headers.update(
+        return next((self._json[key] for key in keys if key in self._json), default)
+
+    def get_url(self, url: str) -> str:
+        """Normalize Home Assistant base URL.
+
+        Removes '/api' suffix and trailing slashes.
+
+        Args:
+            url (str): Raw URL from config.
+
+        Returns:
+            str: Normalized base URL.
+
+        Raises:
+            ValueError: If URL is missing.
+        """
+        if not url:
+            raise ValueError('Property "url" is missing in config')
+        return url.replace("/api", "").rstrip("/")
+
+
+class SessionFactory:
+    """Factory for creating configured requests sessions."""
+
+    @staticmethod
+    def create_session(config: Configuration) -> requests.Session:
+        """Create a configured requests session for Home Assistant API.
+
+        Args:
+            config (Configuration): Configuration object with API settings.
+
+        Returns:
+            requests.Session: Configured session ready for API calls.
+        """
+        session = requests.Session()
+
+        # Set up authentication and headers
+        session.headers.update(
             {
                 "Authorization": f"Bearer {config.bearer_token}",
                 "content-type": "application/json",
-                "User-Agent": self.get_user_agent(),
+                "User-Agent": SessionFactory._get_user_agent(),
             }
         )
-        self.session.verify = config.ssl_verify
-        self.session.cert = config.ssl_client
+
+        # Configure SSL settings
+        session.verify = config.ssl_verify
+        session.cert = config.ssl_client
+
+        return session
+
+    @staticmethod
+    def _get_user_agent() -> str:
+        """Generate a user agent string for requests.
+
+        Returns:
+            str: User agent string including AWS region and default requests UA.
+        """
+        aws_region = os.environ.get("AWS_DEFAULT_REGION", "unknown")
+        return f"Home Assistant Alexa Smart Home Skill - {aws_region} - {requests.utils.default_user_agent()}"
+
+
+class HomeAssistant:
+    """Handles HTTP interactions with Home Assistant API."""
+
+    def __init__(self, base_url: str, session: requests.Session) -> None:
+        """Initialize the HomeAssistant client.
+
+        Args:
+            base_url (str): Base URL for HA instance.
+            session (requests.Session, optional): Pre-configured session. If None, creates one.
+        """
+        self.base_url = base_url
+        self.session = session
 
     def build_url(self, endpoint: str) -> str:
         """Build the full API URL for a given endpoint.
@@ -73,15 +164,7 @@ class HomeAssistant:
         Returns:
             str: The complete URL including base URL and '/api/'.
         """
-        return f"{self.config.url}/api/{endpoint}"
-
-    def get_user_agent(self) -> str:
-        """Generate a user agent string for requests.
-
-        Returns:
-            str: User agent string including AWS region and default requests UA.
-        """
-        return f"Home Assistant Alexa Smart Home Skill - {os.environ.get('AWS_DEFAULT_REGION')} - {requests.utils.default_user_agent()}"
+        return f"{self.base_url}/api/{endpoint}"
 
     def get(self, endpoint: str) -> Dict[str, Any]:
         """Perform a GET request to the Home Assistant API.
@@ -127,69 +210,6 @@ class HomeAssistant:
             return None
 
 
-class Configuration:
-    """Loads and parses configuration from JSON file or dict.
-
-    Handles default values and type conversions for Home Assistant settings.
-    """
-
-    def __init__(
-        self, filename: Optional[str] = None, opts_dict: Optional[Dict[str, Any]] = None
-    ) -> None:
-        """Initialize configuration from file or dict.
-
-        Args:
-            filename (str, optional): Path to JSON config file.
-            opts_dict (dict, optional): Dict with config options.
-        """
-        self._json = opts_dict or {}
-        if filename:
-            try:
-                with open(filename, encoding="utf-8") as f:
-                    self._json = json.load(f)
-            except json.JSONDecodeError as e:
-                raise ValueError(f"Invalid JSON in config file {filename}: {e}") from e
-
-        self.url = self.get_url(self.get(["url", "ha_url"]))
-        self.ssl_verify = self.get(["ssl_verify", "ha_cert"], True)
-        self.bearer_token = self.get(["bearer_token"], "")
-        self.ssl_client = self.get(["ssl_client"], "")
-        # Convert list to tuple for SSL client cert if provided
-        if isinstance(self.ssl_client, list):
-            self.ssl_client = tuple(self.ssl_client)
-        self.debug = self.get(["debug"], False)
-
-    def get(self, keys: List[str], default: Any = None) -> Any:
-        """Retrieve value from config dict using multiple possible keys.
-
-        Args:
-            keys (list): List of possible key names to check.
-            default: Default value if none of the keys are found.
-
-        Returns:
-            The value associated with the first matching key, or default.
-        """
-        return next((self._json[key] for key in keys if key in self._json), default)
-
-    def get_url(self, url: str) -> str:
-        """Normalize Home Assistant base URL.
-
-        Removes '/api' suffix and trailing slashes.
-
-        Args:
-            url (str): Raw URL from config.
-
-        Returns:
-            str: Normalized base URL.
-
-        Raises:
-            ValueError: If URL is missing.
-        """
-        if not url:
-            raise ValueError('Property "url" is missing in config')
-        return url.replace("/api", "").rstrip("/")
-
-
 def event_handler(event: Dict[str, Any], _context: Any) -> Optional[Dict[str, Any]]:
     """AWS Lambda event handler for Alexa smart home events.
 
@@ -202,7 +222,7 @@ def event_handler(event: Dict[str, Any], _context: Any) -> Optional[Dict[str, An
     Returns:
         dict or None: Response from Home Assistant API, or None if timed out.
     """
-    config = Configuration("config.json")
+    config = Configuration(ConfigurationLoader.load("config.json"))
     if config.debug:
         logger.setLevel(logging.DEBUG)
     ha = HomeAssistant(config)

@@ -134,7 +134,9 @@ class Configuration:
     """
 
     def __init__(
-        self, filename: Optional[str] = None, opts_dict: Optional[Dict[str, Any]] = None
+        self,
+        filename: Optional[str] = None,
+        opts_dict: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Initialize configuration from file or dict.
 

@@ -1,18 +1,21 @@
 import os
+
 import pytest
 
-from haaska import HomeAssistant, Configuration
+from haaska import Configuration, HomeAssistant
 
 
 @pytest.fixture
 def configuration():
-    return Configuration(opts_dict={
-        "url": "http://localhost:8123",
-        "bearer_token": "",
-        "debug": False,
-        "ssl_verify": True,
-        "ssl_client": []
-    })
+    return Configuration(
+        opts_dict={
+            "url": "http://localhost:8123",
+            "bearer_token": "",
+            "debug": False,
+            "ssl_verify": True,
+            "ssl_client": [],
+        }
+    )
 
 
 @pytest.fixture
@@ -38,10 +41,7 @@ def test_config_get(configuration):
 
 
 def test_config_get_url(configuration):
-    test_urls = [
-        "http://hass.example.com:8123",
-        "http://hass.example.app"
-    ]
+    test_urls = ["http://hass.example.com:8123", "http://hass.example.app"]
     for expected_url in test_urls:
         assert configuration.get_url(expected_url + "/") == expected_url
         assert configuration.get_url(expected_url + "/api") == expected_url

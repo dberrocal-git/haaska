@@ -24,8 +24,4 @@ jobs:
     - uses: actions/checkout@v5
     - name: Set up Python
       uses: actions/setup-python@v6
-    - name: Install dependencies
-      run: |
-        pip install -r requirements-test.txt
-    - name: Lint
-      run: flake8 haaska.py
+    - uses: pre-commit/action@v3.0.1

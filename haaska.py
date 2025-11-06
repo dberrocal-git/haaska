@@ -38,6 +38,7 @@ logger = logging.getLogger()
 
 DEFAULT_TIMEOUT_SECONDS = 30
 
+
 class HomeAssistant:
     """Handles HTTP interactions with Home Assistant API.
 
@@ -117,9 +118,7 @@ class HomeAssistant:
         """
         try:
             logger.debug("calling %s with %s", endpoint, event)
-            r = self.session.post(
-                self.build_url(endpoint), json=event, timeout=timeout_seconds
-            )
+            r = self.session.post(self.build_url(endpoint), json=event, timeout=timeout_seconds)
             r.raise_for_status()
             return r.json()
         except requests.exceptions.ReadTimeout:
@@ -134,7 +133,9 @@ class Configuration:
     """
 
     def __init__(
-        self, filename: Optional[str] = None, opts_dict: Optional[Dict[str, Any]] = None
+        self,
+        filename: Optional[str] = None,
+        opts_dict: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Initialize configuration from file or dict.
 

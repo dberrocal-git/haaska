@@ -1,3 +1,9 @@
+> [!WARNING]
+> ## ⚠️ Want "local" control to any Matter-compatible controller?
+> Check out **[home-assistant-matter-hub](https://github.com/riddix/home-assistant-matter-hub)**
+
+
+
 # haaska: Home Assistant Alexa Skill Adapter
 
 [![Main](https://github.com/dberrocal-git/haaska/actions/workflows/makefile.yml/badge.svg)](https://github.com/dberrocal-git/haaska/actions/workflows/makefile.yml)
